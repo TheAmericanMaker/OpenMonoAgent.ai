@@ -27,8 +27,16 @@ public sealed class AcpUserInteractionForwarder : IAcpUserInteraction
 
     public async Task<bool> RequestPermissionAsync(string toolName, string summary, bool dangerous, CancellationToken ct)
     {
+        var contextKey = PermissionContextKey(toolName, summary);
+
+        // If a previous /turn POST already resolved this exact prompt, return the
+        // remembered decision without bothering the client again. This is what makes
+        // re-prompting on resume terminate (otherwise every retry would pause again).
+        if (_session.TryGetRememberedPermission(contextKey) is bool cached)
+            return cached;
+
         var id = "perm_" + Guid.NewGuid().ToString("N")[..12];
-        _session.RegisterPause(id, PendingResponseKind.Permission);
+        _session.RegisterPause(id, PendingResponseKind.Permission, contextKey);
 
         await _writer.WriteEventAsync("permission_request", new
         {
@@ -43,8 +51,14 @@ public sealed class AcpUserInteractionForwarder : IAcpUserInteraction
 
     public async Task<string?> RequestUserInputAsync(string question, CancellationToken ct)
     {
+        // Same caching story as permissions — once the user has answered a given
+        // question for this session, future invocations of AskUser with the same
+        // question get the cached value.
+        if (_session.TryGetRememberedUserInput(question) is { } cached)
+            return cached;
+
         var id = "ask_" + Guid.NewGuid().ToString("N")[..12];
-        _session.RegisterPause(id, PendingResponseKind.UserInput);
+        _session.RegisterPause(id, PendingResponseKind.UserInput, question);
 
         await _writer.WriteEventAsync("user_input_request", new
         {
@@ -54,4 +68,8 @@ public sealed class AcpUserInteractionForwarder : IAcpUserInteraction
 
         throw new PendingUserResponseException(id, PendingResponseKind.UserInput);
     }
+
+    /// <summary>Stable, human-readable cache key for permission decisions.</summary>
+    public static string PermissionContextKey(string toolName, string summary)
+        => $"{toolName}|{summary}";
 }

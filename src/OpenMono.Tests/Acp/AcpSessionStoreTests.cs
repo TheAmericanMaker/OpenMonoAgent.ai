@@ -264,7 +264,7 @@ public sealed class AcpSessionStoreTests : IDisposable
     public async Task RegisterPause_and_TryResolvePause_complete_the_TCS_with_response()
     {
         var session = NewBareSession();
-        var tcs = session.RegisterPause("perm_abc", PendingResponseKind.Permission);
+        var tcs = session.RegisterPause("perm_abc", PendingResponseKind.Permission, "Bash|rm /tmp/x");
 
         session.TryResolvePause("perm_abc", new AcpPermissionResponse(Allow: true)).Should().BeTrue();
         tcs.Task.IsCompletedSuccessfully.Should().BeTrue();
@@ -277,9 +277,9 @@ public sealed class AcpSessionStoreTests : IDisposable
     public void RegisterPause_with_duplicate_id_throws()
     {
         var session = NewBareSession();
-        session.RegisterPause("perm_abc", PendingResponseKind.Permission);
+        session.RegisterPause("perm_abc", PendingResponseKind.Permission, "Bash|rm /tmp/x");
 
-        Action act = () => session.RegisterPause("perm_abc", PendingResponseKind.Permission);
+        Action act = () => session.RegisterPause("perm_abc", PendingResponseKind.Permission, "Bash|something else");
         act.Should().Throw<InvalidOperationException>().WithMessage("*Duplicate pause id*");
     }
 
@@ -294,8 +294,8 @@ public sealed class AcpSessionStoreTests : IDisposable
     public void CancelAllPending_cancels_outstanding_TCS_and_clears_registry()
     {
         var session = NewBareSession();
-        var tcs1 = session.RegisterPause("perm_1", PendingResponseKind.Permission);
-        var tcs2 = session.RegisterPause("ask_1", PendingResponseKind.UserInput);
+        var tcs1 = session.RegisterPause("perm_1", PendingResponseKind.Permission, "Bash|x");
+        var tcs2 = session.RegisterPause("ask_1", PendingResponseKind.UserInput, "Which algorithm?");
         session.PendingIds.Should().BeEquivalentTo("perm_1", "ask_1");
 
         session.CancelAllPending();
@@ -303,6 +303,41 @@ public sealed class AcpSessionStoreTests : IDisposable
         tcs1.Task.IsCanceled.Should().BeTrue();
         tcs2.Task.IsCanceled.Should().BeTrue();
         session.PendingIds.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void LookupPauseContext_returns_kind_and_contextKey_for_registered_pauses()
+    {
+        var session = NewBareSession();
+        session.RegisterPause("perm_xyz", PendingResponseKind.Permission, "Bash|rm node_modules");
+        session.RegisterPause("ask_xyz", PendingResponseKind.UserInput, "Which encryption?");
+
+        session.LookupPauseContext("perm_xyz").Should().Be((PendingResponseKind.Permission, "Bash|rm node_modules"));
+        session.LookupPauseContext("ask_xyz").Should().Be((PendingResponseKind.UserInput, "Which encryption?"));
+        session.LookupPauseContext("missing").Should().BeNull();
+    }
+
+    [Fact]
+    public void RememberPermission_and_TryGetRememberedPermission_round_trip()
+    {
+        var session = NewBareSession();
+        session.TryGetRememberedPermission("Bash|x").Should().BeNull();
+
+        session.RememberPermission("Bash|x", allow: true);
+        session.RememberPermission("Bash|y", allow: false);
+
+        session.TryGetRememberedPermission("Bash|x").Should().BeTrue();
+        session.TryGetRememberedPermission("Bash|y").Should().BeFalse();
+        session.TryGetRememberedPermission("Bash|never-asked").Should().BeNull();
+    }
+
+    [Fact]
+    public void RememberUserInput_and_TryGetRememberedUserInput_round_trip()
+    {
+        var session = NewBareSession();
+        session.RememberUserInput("which algorithm?", "AES-256-GCM");
+        session.TryGetRememberedUserInput("which algorithm?").Should().Be("AES-256-GCM");
+        session.TryGetRememberedUserInput("never-asked").Should().BeNull();
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────────

@@ -27,21 +27,34 @@ public sealed class AcpSession
     /// <summary>
     /// Pause-resume registry. Keyed by pause id (e.g. <c>perm_abc</c> / <c>ask_xyz</c>).
     /// Runtime-only: a paused conversation cannot survive a container restart because the
-    /// awaiting TaskCompletionSource lives only in this process.
+    /// awaiting TaskCompletionSource lives only in this process. <c>ContextKey</c> stashes
+    /// what was asked (e.g. <c>"Bash|rm /tmp/file"</c> or the AskUser question text) so
+    /// AcpTurnRunner can remember the decision under that key for the resumed loop's
+    /// duplicate prompt.
     /// </summary>
     [JsonIgnore]
     private readonly ConcurrentDictionary<string, PendingPause> _pending = new();
 
-    public TaskCompletionSource<AcpPauseResponse> RegisterPause(string id, PendingResponseKind kind)
+    [JsonIgnore]
+    private readonly ConcurrentDictionary<string, bool> _rememberedPermissions = new();
+
+    [JsonIgnore]
+    private readonly ConcurrentDictionary<string, string> _rememberedUserInputs = new();
+
+    public TaskCompletionSource<AcpPauseResponse> RegisterPause(
+        string id, PendingResponseKind kind, string contextKey)
     {
         var tcs = new TaskCompletionSource<AcpPauseResponse>(TaskCreationOptions.RunContinuationsAsynchronously);
-        if (!_pending.TryAdd(id, new PendingPause(kind, tcs)))
+        if (!_pending.TryAdd(id, new PendingPause(kind, contextKey, tcs)))
             throw new InvalidOperationException($"Duplicate pause id: {id}");
         return tcs;
     }
 
     public bool TryResolvePause(string id, AcpPauseResponse response)
         => _pending.TryRemove(id, out var pp) && pp.Tcs.TrySetResult(response);
+
+    public (PendingResponseKind Kind, string ContextKey)? LookupPauseContext(string id)
+        => _pending.TryGetValue(id, out var pp) ? (pp.Kind, pp.ContextKey) : null;
 
     [JsonIgnore]
     public IReadOnlyCollection<string> PendingIds => _pending.Keys.ToArray();
@@ -52,7 +65,28 @@ public sealed class AcpSession
         _pending.Clear();
     }
 
-    private sealed record PendingPause(PendingResponseKind Kind, TaskCompletionSource<AcpPauseResponse> Tcs);
+    /// <summary>
+    /// Stash a permission decision (<c>true</c> = Allow) under the context key the original
+    /// pause was registered with. The <see cref="AcpUserInteractionForwarder"/> consults this
+    /// cache before pausing again, so the LLM's re-issued tool call after a resume picks up
+    /// the same decision without another round-trip to the client.
+    /// </summary>
+    public void RememberPermission(string contextKey, bool allow)
+        => _rememberedPermissions[contextKey] = allow;
+
+    public bool? TryGetRememberedPermission(string contextKey)
+        => _rememberedPermissions.TryGetValue(contextKey, out var v) ? v : null;
+
+    public void RememberUserInput(string contextKey, string value)
+        => _rememberedUserInputs[contextKey] = value;
+
+    public string? TryGetRememberedUserInput(string contextKey)
+        => _rememberedUserInputs.TryGetValue(contextKey, out var v) ? v : null;
+
+    private sealed record PendingPause(
+        PendingResponseKind Kind,
+        string ContextKey,
+        TaskCompletionSource<AcpPauseResponse> Tcs);
 }
 
 /// <summary>

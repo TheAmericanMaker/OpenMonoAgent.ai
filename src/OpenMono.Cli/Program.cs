@@ -1,3 +1,6 @@
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using OpenMono.Acp;
 using OpenMono.Commands;
 using OpenMono.Config;
 using OpenMono.History;
@@ -17,6 +20,9 @@ string? endpoint = null, model = null, workdir = null, configPath = null;
 var verbose = false;
 var showDetail = false;
 bool? useTui = null;
+var noAcp = false;
+int? acpPort = null;
+var acpOnly = false;
 
 for (var i = 0; i < args.Length; i++)
 {
@@ -33,6 +39,9 @@ for (var i = 0; i < args.Length; i++)
         case "--detail": showDetail = true; break;
         case "--tui": useTui = true; break;
         case "--classic": useTui = false; break;
+        case "--no-acp": noAcp = true; break;
+        case "--acp-port" when next is not null && int.TryParse(next, out var p): acpPort = p; i++; break;
+        case "--acp-only": acpOnly = true; break;
         case "--help" or "-h":
             Console.WriteLine("OpenMono.ai — Local Coding Agent");
             Console.WriteLine();
@@ -47,6 +56,10 @@ for (var i = 0; i < args.Length; i++)
             Console.WriteLine("  --detail           Show the right-hand detail panel in the TUI");
             Console.WriteLine("  --tui              Force full-screen TUI mode (default for interactive)");
             Console.WriteLine("  --classic          Force classic scrolling terminal mode");
+            Console.WriteLine("  --no-acp           Force-disable the ACP agent server (overrides config)");
+            Console.WriteLine("  --acp-port <n>     ACP server port (default: 7475 or acpServer.Port in config)");
+            Console.WriteLine("  --acp-only         Run the ACP server only — no TUI (forces ACP on; container default)");
+            Console.WriteLine("                     Without --acp-only, ACP stays off unless acpServer.enabled = true in config.");
             Console.WriteLine("  --help, -h         Show this help message");
             Console.WriteLine("  --version          Show version");
             Console.WriteLine();
@@ -82,10 +95,10 @@ for (var i = 0; i < args.Length; i++)
     }
 }
 
-await RunAgentAsync(endpoint, model, workdir, configPath, verbose, showDetail, useTui);
+await RunAgentAsync(endpoint, model, workdir, configPath, verbose, showDetail, useTui, noAcp, acpPort, acpOnly);
 return 0;
 
-static async Task RunAgentAsync(string? endpoint, string? model, string? workdir, string? configPath, bool verbose = false, bool showDetail = false, bool? useTui = null)
+static async Task RunAgentAsync(string? endpoint, string? model, string? workdir, string? configPath, bool verbose = false, bool showDetail = false, bool? useTui = null, bool noAcp = false, int? acpPort = null, bool acpOnly = false)
 {
 
     IRenderer renderer = new TerminalRenderer();
@@ -104,7 +117,9 @@ static async Task RunAgentAsync(string? endpoint, string? model, string? workdir
     var sessionManager = new SessionManager(config);
     var session = SessionManager.CreateSession();
 
-    var enableTui = useTui ?? (!Console.IsInputRedirected && !Console.IsOutputRedirected);
+
+
+    var enableTui = !acpOnly && (useTui ?? (!Console.IsInputRedirected && !Console.IsOutputRedirected));
     AnsiTuiRenderer? ansiTui = null;
     AppDomain.CurrentDomain.UnhandledException += (_, _) => ansiTui?.SafeExit();
     if (enableTui)
@@ -190,6 +205,119 @@ static async Task RunAgentAsync(string? endpoint, string? model, string? workdir
     });
     await mcpManager.InitializeAsync(mcpConfigs, tools, CancellationToken.None);
 
+    var acp = config.AcpServer ?? new AcpServerSettings();
+    AcpHostedService? acpHost = null;
+    CancellationTokenSource? acpCts = null;
+
+    if (acpOnly && noAcp)
+    {
+        renderer.WriteError("--acp-only and --no-acp are mutually exclusive.");
+        return;
+    }
+
+
+
+
+
+    if (acpOnly) acp.Enabled = true;
+
+    if (acp.Enabled && !noAcp)
+    {
+        if (acpPort.HasValue) acp.Port = acpPort.Value;
+        if (Environment.GetEnvironmentVariable("ACP_PORT") is { Length: > 0 } envPort
+            && int.TryParse(envPort, out var envPortInt))
+            acp.Port = envPortInt;
+
+
+
+
+        var hostWorkspaceExternal = Environment.GetEnvironmentVariable("HOST_WORKSPACE_PATH");
+
+
+
+
+        var runningInDocker = File.Exists("/.dockerenv");
+
+        Environment.SetEnvironmentVariable("HOST_WORKSPACE_PATH",
+            hostWorkspaceExternal ?? config.WorkingDirectory);
+        Environment.SetEnvironmentVariable("HOST_ACP_PORT",
+            Environment.GetEnvironmentVariable("HOST_ACP_PORT") ?? acp.Port.ToString());
+
+
+
+
+
+
+
+        var lockWorkspaceMount = runningInDocker ? "/workspace" : config.WorkingDirectory;
+
+        var acpServices = new ServiceCollection();
+        acpServices.AddSingleton(config);
+        acpServices.AddSingleton<ILlmClient>(llm);
+        acpServices.AddSingleton(tools);
+        acpServices.AddSingleton<IOutputSink>(renderer);
+        acpServices.AddSingleton<IInputReader>(renderer);
+        acpServices.AddSingleton<ILiveFeedback>(renderer);
+
+        acpServices.AddSingleton(new AcpSessionStore(config, acp));
+        var lockFileWriter = new AcpLockFileWriter(acp, lockWorkspaceMount);
+        acpServices.AddSingleton(lockFileWriter);
+        acpServices.AddSingleton(sp => new ConversationLoopFactory(
+            sp.GetRequiredService<ILlmClient>(),
+            sp.GetRequiredService<ToolRegistry>(),
+            sp.GetRequiredService<AppConfig>(),
+            sp.GetRequiredService<IOutputSink>(),
+            sp.GetRequiredService<IInputReader>(),
+            sp.GetRequiredService<ILiveFeedback>()));
+        acpServices.AddSingleton<AcpTurnRunnerFactory>();
+
+        acpCts = new CancellationTokenSource();
+        acpHost = new AcpHostedService(acp, acpServices, lockFileWriter);
+        try
+        {
+            await acpHost.StartAsync(acpCts.Token);
+            renderer.WriteInfo($"ACP server listening on http://127.0.0.1:{acp.Port}");
+            renderer.WriteInfo($"Lock file: {lockFileWriter.LockFilePath}");
+        }
+        catch (Exception ex)
+        {
+
+
+
+
+            renderer.WriteWarning($"ACP server failed to start: {ex.Message}");
+            renderer.WriteWarning("Continuing without ACP. Pass --no-acp to silence this on subsequent runs.");
+            await acpHost.DisposeAsync();
+            acpHost = null;
+            acpCts.Dispose();
+            acpCts = null;
+        }
+    }
+
+    if (acpOnly)
+    {
+        if (acpHost is null)
+        {
+            renderer.WriteError("--acp-only requires the ACP server, but config.AcpServer.Enabled is false.");
+            return;
+        }
+
+        renderer.WriteInfo("Running in --acp-only mode. Send SIGINT (Ctrl+C) to stop.");
+
+        var shutdown = new TaskCompletionSource();
+        Console.CancelKeyPress += (_, e) =>
+        {
+            e.Cancel = true;
+            shutdown.TrySetResult();
+        };
+
+        await shutdown.Task;
+        renderer.WriteInfo("Stopping ACP server…");
+        await acpHost.StopAsync(CancellationToken.None);
+        await acpHost.DisposeAsync();
+        return;
+    }
+
     var checkpointer = new Checkpointer(llm, config.Llm.ContextSize);
 
     var commands = new CommandRegistry();
@@ -250,6 +378,12 @@ static async Task RunAgentAsync(string? endpoint, string? model, string? workdir
 
         if ((now - lastCtrlCExitTime).TotalSeconds <= 1.5)
         {
+
+
+
+
+            try { acpHost?.StopAsync(CancellationToken.None).GetAwaiter().GetResult(); }
+            catch {  }
             ProcessWatchdog.ScheduleHardKill();
             ansiTui?.SafeExit();
             Environment.Exit(0);

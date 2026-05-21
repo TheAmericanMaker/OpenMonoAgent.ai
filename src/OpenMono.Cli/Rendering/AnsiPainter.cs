@@ -1494,8 +1494,8 @@ internal sealed partial class AnsiPainter(AppConfig config, SessionState session
                 lines.Add("");
                 var oldLine = 0;
                 var newLine = 0;
-                // w is lineW = mainW-4; PaintConvArea prepends 1 space and pads to mainW-1,
-                // so filling to w+3 inside the colored block makes the background span the full row.
+
+
                 var fullW = w + 3;
                 for (var i = 0; i < show; i++)
                 {

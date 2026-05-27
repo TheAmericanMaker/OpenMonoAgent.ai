@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -uo pipefail
 # NOTE: -e intentionally disabled — uninstall must keep going even when a step
-# fails (e.g. a container is already gone, an apt package was never installed,
+# fails (e.g. a container is already gone, a distro package was never installed,
 # /usr/local/bin isn't writable). Every command's failure mode is handled
 # locally with `|| true` or an explicit check.
 
@@ -26,8 +26,8 @@ set -uo pipefail
 #
 # Only with --deep (reverses install_prereqs.sh; Ubuntu only):
 #   • docker-ce + docker-ce-cli + containerd.io + buildx + compose plugins
-#   • Docker apt repo + keyring
-#   • nvidia-container-toolkit + apt repo + keyring
+#   • Docker package repo + keyring
+#   • nvidia-container-toolkit + package repo + keyring
 #   • nvidia-cuda-toolkit
 #   • nvidia-driver-* + nvidia-utils-* (warns: drivers are system-wide)
 #   • .NET 10 SDK at $HOME/.dotnet
@@ -40,7 +40,7 @@ set -uo pipefail
 #   • Homebrew, Xcode CLT, Docker Desktop on macOS — too pervasive.
 #
 # Options:
-#   --deep               Also remove apt/system packages installed by prereqs
+#   --deep               Also remove distro/system packages installed by prereqs
 #   --keep-model         Don't prompt to remove the downloaded model
 #   --keep-repo          Don't prompt to remove the cloned repo
 #   --keep-dotnet        Don't remove .NET SDK in --deep mode
@@ -208,16 +208,52 @@ detect_sudo() {
     fi
 }
 
-# uninstall_apt_pkg — apt-get remove --purge a package if installed.
-# Soft-fails so missing packages don't abort the run.
-uninstall_apt_pkg() {
+# pkg_installed — true if a distro package is installed. $PKG_MGR is set by
+# the platform-detection block below; these helpers are only ever called after it.
+pkg_installed() {
     local pkg="$1"
-    if dpkg -s "$pkg" &>/dev/null 2>&1; then
+    if [ "$PKG_MGR" = "dnf" ]; then
+        rpm -q "$pkg" &>/dev/null
+    else
+        dpkg -s "$pkg" &>/dev/null 2>&1
+    fi
+}
+
+# installed_pkgs_matching — names of installed packages matching an ERE.
+# Used where the exact package name varies by driver version.
+installed_pkgs_matching() {
+    local re="$1"
+    if [ "$PKG_MGR" = "dnf" ]; then
+        rpm -qa --qf '%{NAME}\n' 2>/dev/null | grep -E "$re" | sort -u
+    else
+        # Strip any :arch suffix so multi-arch names match the plain package name.
+        dpkg -l 2>/dev/null | awk '/^ii/ {print $2}' | sed 's/:.*//' | grep -E "$re" | sort -u
+    fi
+}
+
+# uninstall_pkg — remove a distro package if installed.
+# Soft-fails so missing packages don't abort the run.
+uninstall_pkg() {
+    local pkg="$1"
+    if pkg_installed "$pkg"; then
         info "Removing $pkg..."
-        do_run $SUDO apt-get remove --purge -y -qq "$pkg"
+        if [ "$PKG_MGR" = "dnf" ]; then
+            do_run $SUDO dnf remove -y -q "$pkg"
+        else
+            do_run $SUDO apt-get remove --purge -y -qq "$pkg"
+        fi
         ok "$pkg removed"
     else
         detail "$pkg not installed — skipping"
+    fi
+}
+
+# autoremove_pkgs — drop dependencies orphaned by the removals above.
+autoremove_pkgs() {
+    if [ "$PKG_MGR" = "dnf" ]; then
+        do_run $SUDO dnf autoremove -y -q
+    else
+        do_run $SUDO apt-get autoremove -y -qq
     fi
 }
 
@@ -355,6 +391,8 @@ fi
 
 PLATFORM="unknown"
 IS_UBUNTU=0
+IS_RPM=0
+PKG_MGR=""
 case "$(uname -s)" in
     Linux)
         PLATFORM="linux"
@@ -365,12 +403,24 @@ case "$(uname -s)" in
             # install the same packages the same way, so --deep can reverse them.
             if [ "${ID:-}" = "ubuntu" ] || [ "${ID:-}" = "linuxmint" ] || printf '%s' "${ID_LIKE:-}" | grep -qw ubuntu; then
                 IS_UBUNTU=1
+            # Fedora / RHEL and friends — install_prereqs.sh installs the RPM
+            # equivalents there, so --deep can reverse those too.
+            elif [ "${ID:-}" = "fedora" ] || printf '%s' "${ID_LIKE:-}" | grep -qEw 'fedora|rhel'; then
+                IS_RPM=1
             fi
+        fi
+        # Trust the package manager actually present over the os-release guess:
+        # it decides which commands below are valid.
+        if command -v dnf &>/dev/null; then
+            PKG_MGR="dnf"
+            [ "$IS_UBUNTU" = "1" ] || IS_RPM=1
+        elif command -v apt-get &>/dev/null; then
+            PKG_MGR="apt"
         fi
         ;;
     Darwin) PLATFORM="macos" ;;
 esac
-detail "Platform: $PLATFORM (ubuntu=$IS_UBUNTU)"
+detail "Platform: $PLATFORM (ubuntu=$IS_UBUNTU rpm=$IS_RPM pkg=${PKG_MGR:-none})"
 
 SUDO="$(detect_sudo)"
 if [ "$SUDO" = "__no_sudo__" ]; then
@@ -394,8 +444,8 @@ printf "    • \$HOME/.openmono/ (prefs, graph-db, logs, env)\n"
 printf "    • Power profile reset to 'balanced' (if powerprofilesctl is present)\n"
 printf "    • .NET PATH/DOTNET_ROOT block from your shell rc files\n"
 if [ "$DEEP" = "1" ]; then
-    printf "  ${BOLD}--deep also removes${NC} (Ubuntu only):\n"
-    [ "$KEEP_DOCKER" = "0" ] && printf "    • docker-ce + apt repo + keyring\n"
+    printf "  ${BOLD}--deep also removes${NC} (Ubuntu/Fedora only):\n"
+    [ "$KEEP_DOCKER" = "0" ] && printf "    • docker-ce + package repo + keyring\n"
     [ "$KEEP_NVIDIA" = "0" ] && printf "    • NVIDIA drivers, CUDA, container toolkit, repo + keyring\n"
     [ "$KEEP_DOTNET" = "0" ] && printf "    • .NET 10 SDK in \$HOME/.dotnet\n"
     printf "    • code-review-graph + graphifyy (pip --user)\n"
@@ -670,9 +720,9 @@ fi
 # --deep mode: reverse install_prereqs.sh
 # ────────────────────────────────────────────────────────────────────────────
 
-if [ "$IS_UBUNTU" != "1" ]; then
-    warn "--deep only reverses Ubuntu apt installs from install_prereqs.sh."
-    warn "Detected platform: $PLATFORM. Skipping apt steps."
+if [ "$IS_UBUNTU" != "1" ] && [ "$IS_RPM" != "1" ]; then
+    warn "--deep only reverses the Ubuntu (apt) and Fedora (dnf) installs from install_prereqs.sh."
+    warn "Detected platform: $PLATFORM. Skipping package steps."
 
     next_step "Removing .NET 10 SDK at \$HOME/.dotnet"
     if [ "$KEEP_DOTNET" = "1" ]; then
@@ -712,21 +762,27 @@ pip_uninstall code-review-graph
 pip_uninstall graphifyy
 pip_uninstall graphify  # defensive: older versions may have used this name
 
-# ── Step 12: Remove Docker (apt) ─────────────────────────────────────────────
+# ── Step 12: Remove Docker ───────────────────────────────────────────────────
 
-next_step "Removing Docker (apt packages + repo + keyring)"
+next_step "Removing Docker (packages + repo + keyring)"
 
 if [ "$KEEP_DOCKER" = "1" ]; then
     info "Keeping Docker (--keep-docker)"
 else
-    if confirm "Remove docker-ce + plugins + apt repo? This deletes ALL local Docker state." "N"; then
+    if confirm "Remove docker-ce + plugins + package repo? This deletes ALL local Docker state." "N"; then
         for pkg in docker-ce docker-ce-cli docker-buildx-plugin docker-compose-plugin containerd.io; do
-            uninstall_apt_pkg "$pkg"
+            uninstall_pkg "$pkg"
         done
-        do_run $SUDO apt-get autoremove -y -qq
+        # install_prereqs.sh pulls this in as a docker-ce dependency on Fedora.
+        [ "$PKG_MGR" = "dnf" ] && uninstall_pkg docker-ce-rootless-extras
+        autoremove_pkgs
 
-        rm_path "/etc/apt/sources.list.d/docker.list" "Docker apt source"
-        rm_path "/etc/apt/keyrings/docker.gpg"        "Docker apt keyring"
+        if [ "$PKG_MGR" = "dnf" ]; then
+            rm_path "/etc/yum.repos.d/docker-ce.repo" "Docker dnf repo"
+        else
+            rm_path "/etc/apt/sources.list.d/docker.list" "Docker apt source"
+            rm_path "/etc/apt/keyrings/docker.gpg"        "Docker apt keyring"
+        fi
 
         if confirm "Also delete /var/lib/docker (ALL images, volumes, containers)?" "N"; then
             do_run $SUDO rm -rf /var/lib/docker /var/lib/containerd
@@ -754,38 +810,53 @@ next_step "Removing NVIDIA stack (drivers + CUDA + container toolkit)"
 
 if [ "$KEEP_NVIDIA" = "1" ]; then
     info "Keeping NVIDIA stack (--keep-nvidia)"
-elif ! command -v dpkg &>/dev/null; then
-    detail "dpkg not available — skipping"
+elif [ -z "$PKG_MGR" ]; then
+    detail "no supported package manager (apt/dnf) — skipping"
 else
+    # Package names differ between the two families; pick the right set up front.
+    if [ "$PKG_MGR" = "dnf" ]; then
+        _nv_present_re='^(akmod-nvidia|kmod-nvidia|xorg-x11-drv-nvidia|nvidia-container|libnvidia-container)'
+        _nv_driver_re='^(akmod-nvidia|kmod-nvidia|xorg-x11-drv-nvidia|nvidia-settings|nvidia-modprobe|nvidia-persistenced|nvidia-libXNVCtrl)'
+    else
+        _nv_present_re='^nvidia-(driver|container|cuda|utils)'
+        _nv_driver_re='^(nvidia-(driver|utils|dkms|kernel)|libnvidia|libcuda)'
+    fi
+
     # Only offer NVIDIA removal if any NVIDIA package is actually present —
     # otherwise the prompt is noise on a CPU-only host.
-    if dpkg -l 2>/dev/null | grep -qE 'nvidia-(driver|container|cuda|utils)' ; then
+    if [ -n "$(installed_pkgs_matching "$_nv_present_re")" ]; then
         warn "NVIDIA driver removal affects ALL applications using the GPU on this host."
         warn "Display managers may fall back to nouveau / llvmpipe after this step."
         if confirm "Remove NVIDIA drivers, CUDA, and container toolkit?" "N"; then
             # Container toolkit first — it depends on the driver, not the other way.
-            uninstall_apt_pkg nvidia-container-toolkit
-            uninstall_apt_pkg nvidia-container-toolkit-base
-            uninstall_apt_pkg libnvidia-container-tools
-            uninstall_apt_pkg libnvidia-container1
+            uninstall_pkg nvidia-container-toolkit
+            uninstall_pkg nvidia-container-toolkit-base
+            uninstall_pkg libnvidia-container-tools
+            uninstall_pkg libnvidia-container1
 
-            rm_path "/etc/apt/sources.list.d/nvidia-container-toolkit.list" "nvidia-container-toolkit apt source"
-            rm_path "/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg" "nvidia-container-toolkit keyring"
+            if [ "$PKG_MGR" = "dnf" ]; then
+                rm_path "/etc/yum.repos.d/nvidia-container-toolkit.repo" "nvidia-container-toolkit dnf repo"
+            else
+                rm_path "/etc/apt/sources.list.d/nvidia-container-toolkit.list" "nvidia-container-toolkit apt source"
+                rm_path "/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg" "nvidia-container-toolkit keyring"
+            fi
 
-            uninstall_apt_pkg nvidia-cuda-toolkit
-            uninstall_apt_pkg nvidia-cuda-toolkit-doc
+            # CUDA — Ubuntu ships a standalone toolkit; on Fedora the CUDA
+            # libraries come from the driver subpackage, removed with the
+            # driver glob below.
+            if [ "$PKG_MGR" != "dnf" ]; then
+                uninstall_pkg nvidia-cuda-toolkit
+                uninstall_pkg nvidia-cuda-toolkit-doc
+            fi
 
-            # Driver / utils — names vary by version. Glob via dpkg.
-            for pkg in $(dpkg -l 2>/dev/null | awk '/^ii\s+nvidia-(driver|utils|dkms|kernel)/ {print $2}'); do
-                uninstall_apt_pkg "$pkg"
+            # Driver / utils — exact names vary by version, so match on a pattern.
+            for pkg in $(installed_pkgs_matching "$_nv_driver_re"); do
+                uninstall_pkg "$pkg"
             done
-            for pkg in $(dpkg -l 2>/dev/null | awk '/^ii\s+(libnvidia|libcuda)/ {print $2}'); do
-                uninstall_apt_pkg "$pkg"
-            done
 
-            uninstall_apt_pkg ubuntu-drivers-common
+            [ "$PKG_MGR" = "dnf" ] || uninstall_pkg ubuntu-drivers-common
 
-            do_run $SUDO apt-get autoremove -y -qq
+            autoremove_pkgs
             warn "A reboot is recommended to fully unload the NVIDIA kernel module."
         else
             info "Keeping NVIDIA stack"

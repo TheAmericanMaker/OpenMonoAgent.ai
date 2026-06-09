@@ -8,8 +8,10 @@ ENV PYTHONUNBUFFERED=1 \
 # Base libs the browsers need; Playwright pulls the rest via --with-deps below.
 # xvfb provides a virtual display so headed (headless=false) browser launches
 # work in this displayless container — the server is wrapped in xvfb-run below.
+# xauth is required by xvfb-run itself (it generates the X authority cookie);
+# without it the wrapper aborts with "xauth command not found".
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        wget ca-certificates fonts-liberation xvfb \
+        wget ca-certificates fonts-liberation xvfb xauth \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

@@ -69,6 +69,7 @@ public sealed class OpenAiCompatClient : ILlmClient, IDisposable
                 var resolvedModel = string.IsNullOrEmpty(options.Model) ? _model : options.Model;
                 OnDebug?.Invoke($"[LLM] Model: {resolvedModel} | Messages: {messages.Count} | Tools: {toolCount} | MaxTokens: {options.MaxTokens}");
                 Log.Debug($"LLM request: model={resolvedModel} messages={messages.Count} tools={toolCount} endpoint={_endpoint}");
+
             }
             else
             {

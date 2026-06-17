@@ -1,5 +1,6 @@
 using System.Text.Json;
 using OpenMono.Session;
+using OpenMono.Utils;
 
 namespace OpenMono.Acp;
 
@@ -48,7 +49,10 @@ public sealed class AcpTurnRunner : IAcpEventSink
 
     public async Task RunUserMessageAsync(string userText, CancellationToken ct)
     {
-        _acpSession.Messages.Add(new Message { Role = MessageRole.User, Content = userText });
+        // Transform relative @ file references to absolute paths (e.g., @file.md → @/workspace/file.md)
+        var transformedText = FileReferenceResolver.TransformRelativeReferences(userText, _loopFactory.Config.WorkingDirectory);
+
+        _acpSession.Messages.Add(new Message { Role = MessageRole.User, Content = transformedText });
         _acpSession.TurnCount++;
         await DriveLoopAsync(ct);
     }
@@ -60,6 +64,11 @@ public sealed class AcpTurnRunner : IAcpEventSink
         var decision = payload.TryGetProperty("decision", out var dEl) ? dEl.GetString() : null;
         var allow = string.Equals(decision, "allow", StringComparison.Ordinal);
 
+        // scope: "session" caches the decision so this tool is never asked again
+        // in this session. scope: "once" (or absent) grants/denies only this
+        // invocation with no cache write.
+        var scope = payload.TryGetProperty("scope", out var sEl) ? sEl.GetString() : "session";
+
         var ctx = _acpSession.LookupPauseContext(id)
             ?? throw new InvalidOperationException($"permission_response for unknown or already-resolved pause id: {id}");
         if (ctx.Kind != PendingResponseKind.Permission)
@@ -68,10 +77,8 @@ public sealed class AcpTurnRunner : IAcpEventSink
         if (!_acpSession.TryResolvePause(id, new AcpPermissionResponse(allow)))
             throw new InvalidOperationException($"failed to resolve pause id: {id}");
 
-
-
-
-        _acpSession.RememberPermission(ctx.ContextKey, allow);
+        if (string.Equals(scope, "session", StringComparison.Ordinal))
+            _acpSession.RememberPermission(ctx.ContextKey, allow);
 
         AppendSyntheticToolMessages(allow
             ? "Permission granted by user. Re-issue the tool call to execute."
@@ -234,4 +241,7 @@ public sealed class AcpTurnRunner : IAcpEventSink
             output_tokens = outputTokens,
             total_tokens = totalTokens,
         });
+
+    public Task OnSubAgentLogAsync(string line)
+        => _writer.WriteEventAsync("sub_agent_log", new { line });
 }

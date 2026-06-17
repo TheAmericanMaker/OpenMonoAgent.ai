@@ -357,9 +357,10 @@ public sealed class ConversationLoop : IDisposable
 
             if (_doomLoop.Check(toolCalls))
             {
-
                 await siblingAbortCts.CancelAsync();
-                _output.WriteWarning("Doom loop detected: agent is repeating the same tool calls. Stopping.");
+                const string doomMsg = "⚠ Doom loop detected: agent is repeating the same tool calls. Stopping.";
+                _output.WriteWarning(doomMsg);
+                if (_sink is not null) _ = _sink.OnSubAgentLogAsync(doomMsg);
                 _session.AddMessage(new Message
                 {
                     Role = MessageRole.User,
@@ -739,13 +740,21 @@ public sealed class ConversationLoop : IDisposable
         Permissions = _permissions,
         Config = _config,
         WorkingDirectory = _config.WorkingDirectory,
-        WriteOutput = text => _output.WriteMarkdown(text),
+        WriteOutput = text =>
+        {
+            _output.WriteMarkdown(text);
+            if (_sink is not null) _ = _sink.OnSubAgentLogAsync(text);
+        },
         AskUser = (question, ct) => _input.AskUserAsync(question, ct),
         FileHistory = _session.Meta.FileHistory,
         Cursors = _cursorStore,
         BeginResponse = _output.StartAssistantResponse,
         EndResponse = () => _output.EndAssistantResponse(),
-        StreamText = _output.StreamText,
+        StreamText = text =>
+        {
+            _output.StreamText(text);
+            if (_sink is not null) _ = _sink.OnSubAgentLogAsync(text);
+        },
         OnDebug = msg => { _output.WriteDebug(msg); Log.Debug(msg); },
     };
 }

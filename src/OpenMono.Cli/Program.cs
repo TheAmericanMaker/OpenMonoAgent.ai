@@ -501,7 +501,9 @@ static async Task RunAgentAsync(string? endpoint, string? model, string? workdir
             continue;
         }
 
-        var (resolvedInput, imageParts) = ResolveAtReferences(input, config.WorkingDirectory);
+        // Transform relative @ file references to absolute paths
+        // The agent will call FileRead to load files (per system prompt)
+        var transformedInput = FileReferenceResolver.TransformRelativeReferences(input, config.WorkingDirectory);
 
         ansiTui?.AddUserMessage(input);
         using var turnCts = new CancellationTokenSource();
@@ -517,7 +519,7 @@ static async Task RunAgentAsync(string? endpoint, string? model, string? workdir
 
         try
         {
-            await loop.RunTurnAsync(resolvedInput, imageParts, turnCts.Token);
+            await loop.RunTurnAsync(transformedInput, imageParts: null, turnCts.Token);
         }
         catch (OperationCanceledException)
         {
@@ -909,60 +911,6 @@ static string DisplayNameFromPath(string modelPath)
         @"-(ud-|il-)?(q\d+_[^-]*|f16|f32|bf16|fp16)$",
         "",
         System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-}
-
-static (string text, List<ImagePart>? images) ResolveAtReferences(string input, string workDir)
-{
-    var matches = System.Text.RegularExpressions.Regex.Matches(input, @"@([\w/\\.\-]+)");
-    if (matches.Count == 0) return (input, null);
-
-    var workDirNorm = Path.GetFullPath(workDir).TrimEnd(Path.DirectorySeparatorChar);
-
-    var injections = new System.Text.StringBuilder();
-    List<ImagePart>? images = null;
-    var resolved = 0;
-    foreach (System.Text.RegularExpressions.Match m in matches)
-    {
-        var relPath = m.Groups[1].Value.Replace('\\', '/');
-
-        var fullPath = Path.IsPathRooted(relPath)
-            ? Path.GetFullPath(relPath)
-            : Path.GetFullPath(Path.Combine(workDir, relPath));
-
-        if (!fullPath.StartsWith(workDirNorm + Path.DirectorySeparatorChar,
-                StringComparison.OrdinalIgnoreCase)
-            && !fullPath.Equals(workDirNorm, StringComparison.OrdinalIgnoreCase))
-            continue;
-
-        if (!File.Exists(fullPath)) continue;
-        try
-        {
-            var ext = Path.GetExtension(relPath).TrimStart('.').ToLower();
-            if (ext is "png" or "jpg" or "jpeg" or "gif" or "webp")
-            {
-                var (imageBytes, mime) = ImageUtils.SmartResize(File.ReadAllBytes(fullPath), ImageUtils.MimeFromExt(ext));
-                var b64 = Convert.ToBase64String(imageBytes);
-                (images ??= []).Add(new ImagePart($"data:{mime};base64,{b64}"));
-                input = input.Replace(m.Value, "");
-                resolved++;
-            }
-            else
-            {
-                var contents = File.ReadAllText(fullPath);
-                injections.AppendLine($"<file path=\"{relPath}\">");
-                if (!string.IsNullOrEmpty(ext)) injections.AppendLine($"```{ext}");
-                injections.AppendLine(contents);
-                if (!string.IsNullOrEmpty(ext)) injections.AppendLine("```");
-                injections.AppendLine("</file>");
-                resolved++;
-            }
-        }
-        catch { }
-    }
-
-    if (resolved == 0) return (input, null);
-    var text = injections.Length > 0 ? injections.ToString() + "\n" + input : input;
-    return (text, images);
 }
 
 static string? ResolveRefDirectory(AppConfig config)

@@ -229,6 +229,7 @@ public sealed class AcpEventSinkTests
         public Task OnUsageAsync(int i, int o, int t) { UsageEvents.Add((i, o, t)); return Task.CompletedTask; }
         public Task OnToolResultPreviewAsync(string callId, string preview, string? artifactId)
         { ToolPreviews.Add((callId, preview, artifactId)); return Task.CompletedTask; }
+        public Task OnSubAgentLogAsync(string line) => Task.CompletedTask;
     }
 
     private sealed class PreviewTool : ITool

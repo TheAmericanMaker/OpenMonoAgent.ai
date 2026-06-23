@@ -23,13 +23,7 @@ public sealed class SessionManager
         var fileName = $"{session.StartedAt:yyyy-MM-dd}_{session.Id}.jsonl";
         var filePath = Path.Combine(_sessionDir, fileName);
 
-        var header = new SessionHeader
-        {
-            SessionId = session.Id,
-            StartedAt = session.StartedAt,
-            WorkingDirectory = _workingDirectory,
-            Model = session.Model,
-        };
+        var header = BuildHeader(session);
 
         var sb = new StringBuilder();
         sb.Append(JsonSerializer.Serialize(header, JsonOptions.Default)).Append('\n');
@@ -55,13 +49,7 @@ public sealed class SessionManager
 
         if (!File.Exists(filePath) || new FileInfo(filePath).Length == 0)
         {
-            var header = new SessionHeader
-            {
-                SessionId = session.Id,
-                StartedAt = session.StartedAt,
-                WorkingDirectory = _workingDirectory,
-                Model = session.Model,
-            };
+            var header = BuildHeader(session);
             await File.AppendAllTextAsync(filePath, JsonSerializer.Serialize(header, JsonOptions.Default) + "\n", ct);
         }
 
@@ -92,6 +80,14 @@ public sealed class SessionManager
             ? new SessionState { Id = header.SessionId, StartedAt = header.StartedAt, Model = header.Model }
             : new SessionState { Id = sessionId };
 
+        if (header is not null)
+        {
+            session.TurnCount = header.TurnCount;
+            session.TotalTokensUsed = header.TotalTokens;
+            session.Meta.PlanMode = header.PlanMode;
+            if (header.Todos.Count > 0) session.Todos.AddRange(header.Todos);
+        }
+
         foreach (var line in lines.Where(l => !string.IsNullOrWhiteSpace(l)))
         {
             if (line.Contains("\"session_id\"")) continue;
@@ -113,6 +109,27 @@ public sealed class SessionManager
         }
 
         return session;
+    }
+
+    public async Task DeleteAsync(string sessionId, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(sessionId) ||
+            sessionId.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+            return;
+
+        foreach (var f in Directory.GetFiles(_sessionDir, $"*_{sessionId}.jsonl"))
+            File.Delete(f);
+        foreach (var f in Directory.GetFiles(_sessionDir, $"*_{sessionId}.checkpoints.json"))
+            File.Delete(f);
+
+        var indexPath = Path.Combine(_sessionDir, "index.json");
+        if (!File.Exists(indexPath)) return;
+
+        var json = await File.ReadAllTextAsync(indexPath, ct);
+        var sessions = JsonSerializer.Deserialize<List<SessionSummary>>(json, JsonOptions.Default) ?? [];
+        if (sessions.RemoveAll(s => s.Id == sessionId) > 0)
+            await WriteAllTextAtomicAsync(indexPath,
+                JsonSerializer.Serialize(sessions, JsonOptions.Indented), ct);
     }
 
     public async Task<IReadOnlyList<SessionSummary>> ListSessionsAsync(int limit, CancellationToken ct)
@@ -169,13 +186,26 @@ public sealed class SessionManager
             JsonSerializer.Serialize(sessions, JsonOptions.Indented), ct);
     }
 
+    private SessionHeader BuildHeader(SessionState session) => new()
+    {
+        SessionId = session.Id,
+        StartedAt = session.StartedAt,
+        WorkingDirectory = _workingDirectory,
+        Model = session.Model,
+        TurnCount = session.TurnCount,
+        TotalTokens = session.TotalTokensUsed,
+        PlanMode = session.Meta.PlanMode,
+        Todos = session.Todos,
+    };
+
     /// <summary>
-    /// Writes to a temp sibling file then atomically renames it over the target, so a
-    /// reader (or a crash) never observes a half-written session/index/checkpoint file.
+    /// Writes to a unique temp sibling file then atomically renames it over the target,
+    /// so a reader (or a crash) never observes a half-written session/index/checkpoint
+    /// file. The unique temp name keeps concurrent writers from colliding on the temp.
     /// </summary>
     private static async Task WriteAllTextAtomicAsync(string path, string content, CancellationToken ct)
     {
-        var tmp = path + ".tmp";
+        var tmp = $"{path}.{Guid.NewGuid():N}.tmp";
         await File.WriteAllTextAsync(tmp, content, ct);
         File.Move(tmp, path, overwrite: true);
     }
@@ -202,4 +232,8 @@ public sealed record SessionHeader
     public required DateTime StartedAt { get; init; }
     public required string WorkingDirectory { get; init; }
     public string? Model { get; init; }
+    public int TurnCount { get; init; }
+    public int TotalTokens { get; init; }
+    public bool PlanMode { get; init; }
+    public List<TodoItem> Todos { get; init; } = new();
 }

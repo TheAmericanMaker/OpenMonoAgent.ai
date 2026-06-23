@@ -142,7 +142,8 @@ public sealed class SessionManager
 
         return sessions
             .Where(s => s.WorkingDirectory == _workingDirectory)
-            .OrderByDescending(s => s.StartedAt)
+            .OrderByDescending(s => s.LastActivityAt)
+            .ThenByDescending(s => s.StartedAt)
             .Take(limit)
             .ToList();
     }

@@ -95,6 +95,7 @@ public sealed class OpenAiCompatClient : ILlmClient, IDisposable
                 var resolvedModel = string.IsNullOrEmpty(options.Model) ? _model : options.Model;
                 OnDebug?.Invoke($"[LLM] Model: {resolvedModel} | Messages: {messages.Count} | Tools: {toolCount} | MaxTokens: {options.MaxTokens}");
                 Log.Debug($"LLM request: model={resolvedModel} messages={messages.Count} tools={toolCount} endpoint={_endpoint}");
+
             }
             else
             {
@@ -176,7 +177,7 @@ public sealed class OpenAiCompatClient : ILlmClient, IDisposable
                     foreach (var tc in toolCalls.Values.Where(t => t.IsComplete))
                     {
                         OnDebug?.Invoke($"[SSE] tool_call: {tc.Name} {{ {tc.Arguments.ToString()[..Math.Min(100, tc.Arguments.Length)]} }}");
-                        Log.Debug($"SSE tool_call: {tc.Name} args={tc.Arguments.ToString()[..Math.Min(200, tc.Arguments.Length)]}");
+                        Log.Info($"[OMA_TOOLCALL] LLM generated tool call: {tc.Name} args={tc.Arguments.ToString()[..Math.Min(200, tc.Arguments.Length)]}");
 
                         yield return new StreamChunk
                         {
@@ -191,7 +192,7 @@ public sealed class OpenAiCompatClient : ILlmClient, IDisposable
 
                     var elapsed = streamStarted.Elapsed;
                     OnDebug?.Invoke($"[LLM] Stream complete — {chunkCount} chunks in {elapsed.TotalSeconds:F1}s");
-                    Log.Debug($"LLM stream complete: chunks={chunkCount} elapsed={elapsed.TotalSeconds:F1}s");
+                    Log.Info($"[OMA_LLM] Stream complete: chunks={chunkCount} tool_calls={toolCalls.Count} elapsed={elapsed.TotalSeconds:F1}s");
 
                     if (toolCalls.Count == 0 && suppressText)
                     {
@@ -251,12 +252,24 @@ public sealed class OpenAiCompatClient : ILlmClient, IDisposable
                     if (root.TryGetProperty("usage", out var usageEl) &&
                         usageEl.ValueKind == JsonValueKind.Object)
                     {
+                        // llama.cpp appends a `timings` block to the same final chunk that carries `usage`.
+                        // predicted_per_second = live generation rate; predicted_n/ms feed the rolling average.
+                        int predictedN = 0; double predictedMs = 0, predictedPerSec = 0;
+                        if (root.TryGetProperty("timings", out var tEl) && tEl.ValueKind == JsonValueKind.Object)
+                        {
+                            if (tEl.TryGetProperty("predicted_n", out var pn)) predictedN = pn.GetInt32();
+                            if (tEl.TryGetProperty("predicted_ms", out var pms)) predictedMs = pms.GetDouble();
+                            if (tEl.TryGetProperty("predicted_per_second", out var pps)) predictedPerSec = pps.GetDouble();
+                        }
                         usage = new UsageInfo
                         {
                             PromptTokens = usageEl.TryGetProperty("prompt_tokens", out var pt) ? pt.GetInt32() : 0,
                             CompletionTokens = usageEl.TryGetProperty("completion_tokens", out var cpt) ? cpt.GetInt32() : 0,
+                            PredictedTokens = predictedN,
+                            PredictedMs = predictedMs,
+                            PredictedPerSecond = predictedPerSec,
                         };
-                        var usageMsg = $"[SSE] usage: prompt={usage.PromptTokens} completion={usage.CompletionTokens} total={usage.TotalTokens}";
+                        var usageMsg = $"[SSE] usage: prompt={usage.PromptTokens} completion={usage.CompletionTokens} total={usage.TotalTokens} gen_tps={usage.PredictedPerSecond:F1}";
                         OnDebug?.Invoke(usageMsg);
                         Log.Info(usageMsg);
                     }
@@ -355,6 +368,12 @@ public sealed class OpenAiCompatClient : ILlmClient, IDisposable
         string configModel)
     {
         var model = string.IsNullOrEmpty(options.Model) ? configModel : options.Model;
+
+        // Log message roles being sent to API
+        var msgRoles = string.Join(",", messages.Select(m => m.Role.ToString()[0]));
+        var systemCount = messages.Count(m => m.Role == MessageRole.System);
+        Log.Info($"[OMA_LLM_REQUEST] Building request with {messages.Count} messages: {msgRoles} (system={systemCount})");
+
         var apiMessages = messages.Select<Message, object>(m => m.Role switch
         {
             MessageRole.System => new { role = "system", content = m.Content },

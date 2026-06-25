@@ -100,12 +100,34 @@ public sealed class LocalToolExecutor : IToolExecutor
         }
         _journal.RecordSanityChecked(call.Id);
 
-        if (_session.Meta.PlanMode && !tool.IsReadOnly)
+        // === SEND TOOL START TO CLIENTS IMMEDIATELY ===
+        // A single tool_start is always sent up front so clients can render the proposed
+        // change (e.g. a file diff) before the user decides. If the tool needs permission,
+        // the PermissionEngine emits a separate `permission_request` that the client
+        // correlates back to THIS tool card by its call id. We deliberately do NOT emit a
+        // distinct "start with permission" event: it carried an unrelated id from the
+        // permission_request and produced a duplicate, non-functional permission card.
+        if (_sink is not null)
         {
-            var planModeError = $"Plan mode is active — investigate and write a plan, do not edit files. " +
-                                $"Call ExitPlanMode with your completed plan to resume, then retry {call.Name}.";
-            _journal.RecordPermissionDecided(call.Id, false, "plan_mode_active");
+            Log.Info($"[OMA_TOOLSTART] Sending tool_start: {call.Name}");
+            await _sink.OnToolStartAsync(call.Id, call.Name, SummarizeToolArgs(call.Arguments), call.Arguments);
+        }
+
+        // HARD plan-mode gate. Enforced here regardless of the system prompt or tool-def
+        // filtering — a weak model can still emit a call for a tool it was never offered.
+        // PlanModePolicy is the single allowlist; blocked calls never execute and surface a
+        // clean, generic "blocked in plan mode" signal to the UI (start + failed end).
+        if (_session.Meta.PlanMode && !PlanModePolicy.IsToolAllowed(tool))
+        {
+            var planModeError = PlanModePolicy.BlockedMessage(call.Name);
+            _journal.RecordPermissionDecided(call.Id, false, "plan_mode_blocked");
             _output.WriteToolDenied(call.Name, planModeError);
+            Log.Info($"[OMA_MODE] Tool '{call.Name}' blocked in plan mode (not in read-only allowlist)");
+            if (_sink is not null)
+            {
+                // OnToolStartAsync already called above, just send end
+                await _sink.OnToolEndAsync(call.Id, call.Name, ok: false, durationMs: 0.0);
+            }
             return ToolResult.Error(planModeError);
         }
 
@@ -113,7 +135,15 @@ public sealed class LocalToolExecutor : IToolExecutor
         bool allowed;
         string? reason;
 
-        if (capabilities.Count > 0)
+        // "Auto implement" for an approved plan: write/exec tools are pre-approved, so skip the
+        // per-edit permission prompt. "Ask before edits" leaves AutoApproveWrites false → normal
+        // prompting below. (Read-only tools are unaffected; the plan-mode gate already ran above.)
+        if (_session.Meta.AutoApproveWrites && !tool.IsReadOnly)
+        {
+            allowed = true;
+            reason = null;
+        }
+        else if (capabilities.Count > 0)
         {
             var capDecision = await _permissions.CheckCapabilitiesAsync(tool.Name, capabilities, ct);
             allowed = capDecision.Allowed;
@@ -138,7 +168,11 @@ public sealed class LocalToolExecutor : IToolExecutor
         }
         _journal.RecordPermissionDecided(call.Id, true);
 
-
+        // Send status: processing (tool execution starting now)
+        if (_sink is not null)
+        {
+            await _sink.OnToolStatusAsync(call.Id, "processing");
+        }
 
         if (tool.IsReadOnly && _cache.TryGet(call.Name, input, out var cachedResult) && cachedResult is not null)
         {
@@ -149,7 +183,7 @@ public sealed class LocalToolExecutor : IToolExecutor
             Log.Debug($"Tool cache hit: {call.Name}");
             if (_sink is not null)
             {
-                await _sink.OnToolStartAsync(call.Id, call.Name, SummarizeToolArgs(call.Arguments));
+                // OnToolStartAsync already called above, just send end (cache hit means instant execution)
                 await _sink.OnToolEndAsync(call.Id, call.Name, ok: true, durationMs: 0.0);
             }
             return cachedResult with { ModelPreview = $"[cached] {cachedResult.ModelPreview}" };
@@ -159,9 +193,8 @@ public sealed class LocalToolExecutor : IToolExecutor
         _session.Meta.TokenTracker?.RecordToolUse(call.Name);
         _journal.RecordToolStarted(call.Id);
 
+        // OnToolStartAsync already called above (before permission check), don't call again
         var stopwatch = Stopwatch.StartNew();
-        if (_sink is not null)
-            await _sink.OnToolStartAsync(call.Id, call.Name, SummarizeToolArgs(call.Arguments));
 
         ToolResult result;
         try
@@ -237,7 +270,11 @@ public sealed class LocalToolExecutor : IToolExecutor
 
         stopwatch.Stop();
         if (_sink is not null)
+        {
+            // Send status before tool_end
+            await _sink.OnToolStatusAsync(call.Id, result.IsError ? "failed" : "success");
             await _sink.OnToolEndAsync(call.Id, call.Name, ok: !result.IsError, durationMs: stopwatch.Elapsed.TotalMilliseconds);
+        }
 
         return result;
     }

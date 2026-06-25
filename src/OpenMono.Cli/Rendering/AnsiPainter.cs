@@ -605,7 +605,10 @@ internal sealed partial class AnsiPainter(AppConfig config, SessionState session
         if (metrics is { PromptTokens: > 0 } m)
         {
             var genTime = m.TotalElapsed - m.TimeToFirstToken;
-            var genTps = genTime.TotalSeconds > 0.001 ? m.CompletionTokens / genTime.TotalSeconds : 0;
+            // Prefer llama.cpp's server-reported decode rate; fall back to wall-clock if absent.
+            var genTps = m.GenTokensPerSecond > 0
+                ? m.GenTokensPerSecond
+                : (genTime.TotalSeconds > 0.001 ? m.CompletionTokens / genTime.TotalSeconds : 0);
             footer = $"TTFT {m.TimeToFirstToken.TotalSeconds:F1}s · gen {genTps:F0}/s · {m.CompletionTokens} tok · {m.TotalElapsed.TotalSeconds:F1}s";
         }
         else
@@ -1440,7 +1443,10 @@ internal sealed partial class AnsiPainter(AppConfig config, SessionState session
             : "";
         var canCancel = _isTurnActive() || QueuedCount > 0;
         var cancelHint = canCancel ? $"{Fk}esc{R}{BgStatus} {Fw}cancel{R}{BgStatus}" : "";
-        var mid   = $"{scrollIndicator}{cancelHint}";
+        var modeIndicator = session.Meta.PlanMode
+            ? $"{Fk}[{R}{Fy}PLAN{R}{Fk}]{R}{BgStatus} "
+            : $"{Fk}[{R}{Fg}BUILD{R}{Fk}]{R}{BgStatus} ";
+        var mid   = $"{modeIndicator}{scrollIndicator}{cancelHint}";
         var right = $"{Fk}ctrl+c{R}{BgStatus} {Fw}quit{R}{BgStatus}   {Fk}ctrl+p{R}{BgStatus} {Fw}commands{R}{BgStatus} ";
         var visM  = VisLen(mid);
         var visR  = VisLen(right);

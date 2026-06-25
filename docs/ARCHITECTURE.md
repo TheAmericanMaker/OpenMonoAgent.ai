@@ -15,31 +15,34 @@ OpenMono is a .NET 10 CLI that runs a local agentic loop against a llama.cpp inf
 ## High-level topology
 
 ```
-┌────────────────────────────────────────┐
-│  openmono (CLI)                        │
-│  src/OpenMono.Cli/                     │
-│                                        │
-│  ConversationLoop                      │
-│    └── ILlmClient (streaming SSE)      │
-│    └── ToolDispatcher                  │
-│         └── 20 built-in tools          │
-│         └── MCP tools (dynamic)        │
-│         └── LSP tools                  │
-│         └── RoslynTool                 │
-│    └── PermissionEngine                │
-│    └── SessionManager (JSONL)          │
-│    └── Compactor / Checkpointer        │
-│    └── HookRunner                      │
-│    └── IRenderer (TUI | Classic)       │
-└────────────────────────────────────────┘
-           │ HTTP :7474 (OpenAI-compat)
-           ▼
-┌────────────────────┐
-│  llama-server      │
-│  (llama.cpp)       │
-│  Qwen3.6 GGUF      │
-└────────────────────┘
+┌──────────────────────────────────┐   ┌──────────────────────────────────┐
+│  openmono (CLI / TUI)            │   │  VS Code / Cursor extension      │
+│  src/OpenMono.Cli/               │   │  StartupHakk.openmono-agent      │
+│                                  │   │  (sidebar chat panel)            │
+│  ConversationLoop                │   │   · streams responses            │
+│    └── ILlmClient (streaming SSE)│   │   · executes workspace tools     │
+│    └── ToolDispatcher            │   │     (file edits, bash, grep,     │
+│         └── 20 built-in tools   │   │      patches, permission prompts) │
+│         └── MCP tools (dynamic) │   └──────────────┬───────────────────┘
+│         └── LSP tools           │                  │ HTTP/SSE (ACP) :7475
+│         └── RoslynTool          │                  ▼
+│    └── PermissionEngine         │   ┌──────────────────────────────────┐
+│    └── SessionManager (JSONL)   │   │  ACP server (--acp-only mode)    │
+│    └── Compactor / Checkpointer │   │  same ConversationLoop + tools   │
+│    └── HookRunner               │   │  as the CLI — extension is UI    │
+│    └── IRenderer (TUI | Classic)│   └──────────────┬───────────────────┘
+└────────────────┬─────────────────┘                  │
+                 │ HTTP :7474 (OpenAI-compat)          │ HTTP :7474
+                 └──────────────────┬─────────────────┘
+                                    ▼
+                       ┌────────────────────┐
+                       │  llama-server      │
+                       │  (llama.cpp)       │
+                       │  Qwen3.6 GGUF      │
+                       └────────────────────┘
 ```
+
+The CLI and the VS Code/Cursor extension share the same agent core. The extension connects over ACP (Agent Client Protocol) on `:7475` — start the agent with `--acp-only --acp-port 7475` to expose this interface instead of the TUI.
 
 ---
 

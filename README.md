@@ -87,11 +87,11 @@ openmono agent --classic    # classic scrolling terminal
       <sub style="color:#6A6A62;">Control your inference server from anywhere. Full agentic loop on iOS &amp; Android — no cloud, no third party.</sub><br/><br/>
       <a href="https://apps.apple.com/us/app/openmono-ai-coding-agent/id6766077801"><code style="font-size:11px;">App Store</code></a> &nbsp;·&nbsp; <a href="https://play.google.com/store/apps/details?id=ai.openmonoagent.app&hl=en_US"><code style="font-size:11px;">Google Play</code></a>
     </td>
-    <td width="25%" valign="top" style="padding:14px 16px;border-top:2px solid #2A2A2A;">
-      <code style="font-size:10px;color:#4A4A44;">⧫ IN PROGRESS</code><br/><br/>
-      <strong style="color:#8A8A82;">VS Code Extension</strong><br/><br/>
-      <sub style="color:#6A6A62;">Native panel bringing the full agentic loop into VS Code &amp; Cursor. No terminal switching, no context loss.</sub><br/><br/>
-      <a href="ROADMAP.md"><code style="font-size:11px;">→ follow the roadmap</code></a>
+    <td width="25%" valign="top" style="padding:14px 16px;border-top:2px solid #A3FF66;">
+      <code style="font-size:10px;color:#A3FF66;">✓ SHIPPED</code><br/><br/>
+      <strong style="color:#A3FF66;">VS Code &amp; Cursor Extension</strong><br/><br/>
+      <sub style="color:#6A6A62;">Chat panel in your editor sidebar. Runs workspace tools locally — file edits, bash, grep, patches — while your local .NET agent handles the LLM. No cloud, no API key.</sub><br/><br/>
+      <a href="https://marketplace.visualstudio.com/items?itemName=StartupHakk.openmono-agent"><code style="font-size:11px;">VS Code Marketplace</code></a>
     </td>
   </tr>
 </table>
@@ -213,12 +213,13 @@ Attach images in chat with `@screenshot.png` or ask the agent to read any image 
 
 ![Linux hardware](docs/assets/table-hardware-linux.svg)
 
+> [!NOTE]
+> The installer detects your hardware and selects the right model automatically — no config needed. 12 GB and 16 GB GPU cards are supported but run lower accuracy models; for best results use a 24 GB card. Linux requires Ubuntu 26.04 LTS (recommended) or 25.10.
+
 ![macOS hardware](docs/assets/table-hardware-macos.svg)
 
 > [!NOTE]
-> The installer detects your hardware and selects the right model automatically — no config needed. On Linux, 12 GB and 16 GB GPU cards are supported but run lower accuracy models; for best results use a 24 GB card. Linux requires Ubuntu 26.04 LTS (recommended) or 25.10.
->
-> On **macOS**, the full and inference roles require Apple Silicon (M1+). **64 GB+ unified memory is the recommended, tested configuration** — full-accuracy 35B model at the full 192k context. Less than 64 GB is not encouraged. Intel Macs are supported in **agent-only** mode. macOS 14+ (Sonoma/Sequoia) recommended.
+> Requires Apple Silicon (M1+). **64 GB+ unified memory is the recommended configuration** — full-accuracy 35B model at the full 192k context. Less than 64 GB falls back to a smaller model with a tighter context window. Intel Macs are supported in **agent-only** mode (connect to a separate inference box). macOS 14+ (Sonoma/Sequoia) recommended.
 
 ---
 
@@ -235,11 +236,57 @@ Attach images in chat with `@screenshot.png` or ask the agent to read any image 
 | [Playbooks](docs/PLAYBOOKS.md) | YAML workflows, typed params, checkpoint/resume |
 | [graphify](docs/graphify.md) | Semantic code graph, 25+ languages |
 | [code-review-graph](docs/code-review-graph.md) | Structural call graph via MCP |
-| **VS Code / Cursor** | Start with `--acp-only --acp-port 7475`, then open the [OpenMono Agent](https://marketplace.visualstudio.com/publishers/StartupHakk) panel |
+| [VS Code / Cursor extension](https://marketplace.visualstudio.com/items?itemName=StartupHakk.openmono-agent) | Chat panel for VS Code 1.85+ and Cursor — `code --install-extension StartupHakk.openmono-agent`, then start the agent with `--acp-only --acp-port 7475` |
 | [Contributing](CONTRIBUTING.md) | How to contribute |
 
 > [!NOTE]
 > OpenMono is in **Public Beta**. Early access is open, and we're shipping updates fast. Try it out and tell us what you'd like to see next.
+
+---
+
+## OpenMono Agent for VS Code & Cursor
+
+<div align="center">
+  <a href="https://marketplace.visualstudio.com/items?itemName=StartupHakk.openmono-agent"><img src="https://img.shields.io/visual-studio-marketplace/v/StartupHakk.openmono-agent?label=VS%20Code%20Marketplace&logo=visualstudiocode&color=007ACC" alt="VS Code Marketplace Version" /></a>
+  <img src="https://img.shields.io/badge/license-AGPL--3.0--or--later-blue" alt="AGPL-3.0-or-later" />
+  <img src="https://img.shields.io/badge/works%20in-VS%20Code%20%2B%20Cursor-007ACC?logo=visualstudiocode&logoColor=white" alt="VS Code + Cursor" />
+</div>
+
+> **The same local-first agent — now in your editor's sidebar.**
+
+OpenMono Agent is the editor front-end for the OpenMono coding agent: a chat panel for VS Code and Cursor that talks to the agent running on your own machine. The extension renders streaming responses and executes workspace tools right inside your editor — file reads and writes, bash, grep, patches, permission prompts — while a **local .NET agent** does the heavy lifting (the LLM, sessions, memory, MCP, and playbooks). It connects over HTTP/SSE using ACP on port `7475`, so the model and your code never leave your network. No account, no API key, no per-token meter — just the agent on your desk, answering only to you.
+
+### Install
+
+From the **VS Code Marketplace** (VS Code 1.85+ and Cursor):
+
+```bash
+code --install-extension StartupHakk.openmono-agent
+```
+
+Or install a release `.vsix` directly:
+
+```bash
+code --install-extension openmono-agent-0.6.1.vsix
+```
+
+> [!IMPORTANT]
+> The extension is the UI and workspace tool executor — it does **not** run the model. You also need the local OpenMono agent and hardware capable of running it (~24 GB VRAM on GPU, or ~24 GB RAM on CPU). The extension can auto-spawn the agent in a Docker container for convenience, or you can start it yourself with `--acp-only`.
+
+### What it does
+
+- **Chat panel in your editor** — a sidebar webview with streaming responses, live Markdown rendering, and syntax-highlighted code blocks.
+- **Workspace tools run locally, in your editor** — file reads/writes, bash, grep, and patches execute inside VS Code / Cursor, with permission prompts before anything touches your files.
+- **Local .NET agent does the rest** — the LLM, sessions, memory, MCP, and playbooks are handled by the agent (built on .NET 10) over HTTP/SSE (ACP, port `7475`).
+- **Default inference is local llama.cpp** — fully supported and offline-capable (Qwen3-class models). OpenAI / Anthropic / Ollama providers exist but are WIP.
+- **Commands** — Start Agent for Workspace, Stop Agent, Clear Session, Resume Session, Select Workspace Folder.
+- **Optional Docker auto-spawn** — let the extension launch the agent in a container, or run it manually. Docker is optional.
+
+### Links
+
+- **Marketplace** — [StartupHakk.openmono-agent](https://marketplace.visualstudio.com/items?itemName=StartupHakk.openmono-agent)
+- **Source (GitHub)** — [github.com/StartupHakk/OpenMonoAgent.ai](https://github.com/StartupHakk/OpenMonoAgent.ai)
+- **Maker** — [StartupHakk](https://startuphakk.com)
 
 ---
 

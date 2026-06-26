@@ -39,6 +39,8 @@ OpenMono is a coding agent that runs **entirely on your hardware** — no subscr
 
 ## Quickstart
 
+One command. Auto-detects GPU · CPU · Apple Silicon. Installs model, runtime, and Docker containers.
+
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/StartupHakk/OpenMonoAgent.ai/refs/heads/main/get-openmono.sh)
 ```
@@ -46,55 +48,28 @@ bash <(curl -fsSL https://raw.githubusercontent.com/StartupHakk/OpenMonoAgent.ai
 Then from any project:
 
 ```bash
-openmono agent          # TUI mode (default)
-openmono agent --classic    # classic scrolling terminal
+openmono agent            # TUI mode (default)
+openmono agent --classic  # classic scrolling terminal
 ```
+
+<sub><a href="docs/SETUP.md">→ Full command reference</a> — daily commands, setup flags, GPU/CPU options</sub>
+
+<br/>
 
 <div align="center">
   <img src="docs/assets/tui-snapshot-openmono.png" alt="OpenMono TUI" width="780" />
 </div>
-
-> [!NOTE]
-> TUI mode is the default for interactive terminals. Use `openmono agent --classic` for CLI.
-
-→ [Full command reference](docs/SETUP.md) — daily commands, setup flags, GPU/CPU options
 
 ---
 
 <!--  ── WHAT'S SHIPPING ─────────────────────────────────────── -->
 ## What's shipping
 
-<table width="100%" style="border-collapse:collapse;background:#111111;border:1px solid #232323;border-radius:4px;">
-  <tr><td colspan="4" style="padding:8px 16px 6px;border-bottom:1px solid #232323;">
-    <code style="font-size:11px;color:#A3FF66;letter-spacing:0.12em;">02 · WHAT'S SHIPPING</code>
-  </td></tr>
-  <tr>
-    <td width="25%" valign="top" style="padding:14px 16px;border-right:1px solid #232323;border-top:2px solid #A3FF66;">
-      <code style="font-size:10px;color:#A3FF66;">✓ SHIPPED · June 2026</code><br/><br/>
-      <strong style="color:#A3FF66;">Web Search &amp; Scraping</strong><br/><br/>
-      <sub style="color:#6A6A62;">Private, self-hosted search via SearXNG + anti-bot scraping via Scrapling. Your queries never leave the machine.</sub><br/><br/>
-      <code style="font-size:11px;">openmono setup search</code>
-    </td>
-    <td width="25%" valign="top" style="padding:14px 16px;border-right:1px solid #232323;border-top:2px solid #A3FF66;">
-      <code style="font-size:10px;color:#A3FF66;">✓ SHIPPED · June 2026</code><br/><br/>
-      <strong style="color:#A3FF66;">Vision</strong><br/><br/>
-      <sub style="color:#6A6A62;">Attach images in chat with <code>@screenshot.png</code>. mmproj downloads automatically. PNG, JPG, GIF, WebP.</sub><br/><br/>
-      <code style="font-size:11px;">OPENMONO_VISION_ENABLED=1</code>
-    </td>
-    <td width="25%" valign="top" style="padding:14px 16px;border-right:1px solid #232323;border-top:2px solid #A3FF66;">
-      <code style="font-size:10px;color:#A3FF66;">✓ SHIPPED</code><br/><br/>
-      <strong style="color:#A3FF66;">Mobile App</strong><br/><br/>
-      <sub style="color:#6A6A62;">Control your inference server from anywhere. Full agentic loop on iOS &amp; Android — no cloud, no third party.</sub><br/><br/>
-      <a href="https://apps.apple.com/us/app/openmono-ai-coding-agent/id6766077801"><code style="font-size:11px;">App Store</code></a> &nbsp;·&nbsp; <a href="https://play.google.com/store/apps/details?id=ai.openmonoagent.app&hl=en_US"><code style="font-size:11px;">Google Play</code></a>
-    </td>
-    <td width="25%" valign="top" style="padding:14px 16px;border-top:2px solid #A3FF66;">
-      <code style="font-size:10px;color:#A3FF66;">✓ SHIPPED</code><br/><br/>
-      <strong style="color:#A3FF66;">VS Code &amp; Cursor Extension</strong><br/><br/>
-      <sub style="color:#6A6A62;">Chat panel in your editor sidebar. Runs workspace tools locally — file edits, bash, grep, patches — while your local .NET agent handles the LLM. No cloud, no API key.</sub><br/><br/>
-      <a href="https://marketplace.visualstudio.com/items?itemName=StartupHakk.openmono-agent"><code style="font-size:11px;">VS Code Marketplace</code></a>
-    </td>
-  </tr>
-</table>
+<div align="center">
+  <img src="docs/assets/whats-shipping.svg" alt="What's shipping — Web Search & Scraping, Vision, Mobile App, VS Code & Cursor Extension" width="800" />
+</div>
+
+<sub><strong>Get them:</strong> <code>openmono setup search</code> · <code>OPENMONO_VISION_ENABLED=1</code> · <a href="https://apps.apple.com/us/app/openmono-ai-coding-agent/id6766077801">App Store</a> · <a href="https://play.google.com/store/apps/details?id=ai.openmonoagent.app&hl=en_US">Google Play</a> · <a href="https://marketplace.visualstudio.com/items?itemName=StartupHakk.openmono-agent">VS Code Marketplace</a></sub>
 
 ---
 
@@ -103,16 +78,10 @@ openmono agent --classic    # classic scrolling terminal
 
 Most coding agents are cloud products wearing an open-source label. Your prompts, your code, and your context hit someone else's servers on every keystroke. OpenMono runs the model on your hardware — after the one-time setup, **inference costs nothing**. Your code never leaves the machine. No account. No usage dashboard. No API key.
 
-|  | **OpenMono** | Claude Code | OpenCode |
-|--|:-------------|-------------|----------|
-| **Inference cost** | Zero per token (local) | Per-token billing | Per-token billing |
-| **Data privacy** | Fully offline capable | Cloud only | Depends on provider |
-| **Default inference** | llama.cpp bundled, zero config | Anthropic API required | BYO provider, no bundled inference |
-| **Sandboxing** | Docker-native | Host process | Host process |
-| **Code intelligence** | LSP + Roslyn + MCP graph tools | File reads | LSP (30+ servers) |
-| **Extensibility** | Playbooks (typed, composable) | Skills (markdown) | Plugins (TS SDK) |
-| **MCP** | Client (stdio) | Full client | Full client |
-| **UI** | TUI + CLI + VS Code + Mobile | Web, Desktop, VS Code, CLI | TUI, Desktop, Web |
+<div align="center">
+  <a href="docs/ARCHITECTURE.md"><img src="docs/assets/table-compare.svg" alt="How OpenMono compares to Claude Code and OpenCode across cost, privacy, inference, sandboxing, code intelligence, extensibility, MCP, UI, and hardware" width="800" /></a>
+</div>
+
 
 → [Full architecture + diagram](docs/ARCHITECTURE.md) · [4 providers](docs/MODELS.md) · runs at **~45 tok/s on GPU**, ~20 tok/s on CPU
 
@@ -242,58 +211,87 @@ The full agent loop in your editor sidebar — streaming responses, live Markdow
 <!--  ── SUPPORTED HARDWARE ──────────────────────────────────── -->
 ## Supported Hardware
 
-### Linux — NVIDIA GPU / CPU
+<div align="center">
+  <img src="docs/assets/table-hardware-linux.svg" alt="Linux — NVIDIA GPU / CPU: supported models, accuracy, and speed by VRAM/RAM" width="800" />
+</div>
 
-| VRAM / RAM | Model | Accuracy | Speed |
-|------------|-------|----------|-------|
-| GPU 24 GB+ | Qwen3.6-27B-Q4_K_M | Full | ~45–70 tok/s |
-| GPU 16 GB | Qwen3.6-27B-UD-IQ3_XXS | Lower | ~20–42 tok/s (4060 Ti → 4080) |
-| GPU 12 GB | Qwen3.5-9B-Q4_K_M | Lower | ~38–40 tok/s (RTX 3060) |
-| CPU 24 GB RAM | Qwen3.6-35B-A3B-UD-Q4_K_XL | Full | ~17–20 tok/s |
+<br/>
 
-### macOS — Apple Silicon (Metal)
+<div align="center">
+  <img src="docs/assets/table-hardware-macos.svg" alt="macOS — Apple Silicon (Metal): supported models, accuracy, context, and speed by unified memory" width="800" />
+</div>
 
-Inference runs natively on the Metal GPU via llama.cpp — no Docker needed for the model. Model tier is picked from the unified memory size.
+<sub>Auto-detects GPU · CPU · no config needed. On Linux, 12 GB and 16 GB cards run lower-accuracy models; use a 24 GB card for best results. Requires Ubuntu 26.04 LTS (recommended) or 25.10. On macOS, the full and inference roles require Apple Silicon (M1+); 64 GB+ unified memory is the recommended, tested configuration. Less than 64 GB is not encouraged — smaller model, much tighter context window. Intel Macs: agent-only mode. macOS 14+ (Sonoma/Sequoia) recommended.</sub>
 
-| Unified memory | Model | Accuracy | Context (vision on) | Speed | Status |
-|----------------|-------|----------|---------------------|-------|--------|
-| 64 GB+ | Qwen3.6-35B-A3B-UD-Q4_K_XL | Full | 192k (168k) | ~45–48 tok/s (M5 Pro) | ✅ Recommended / tested |
-| 32 GB | Qwen3.5-9B-Q4_K_M | Lower | 64k (48k) | ~22–27 tok/s (M1 Max) | ⚠️ Not encouraged |
-| 16 GB | Qwen3.5-9B-Q4_K_M | Lower | 16k (12k) | ~12–16 tok/s (M4) | ⚠️ Not encouraged |
-
-> [!NOTE]
-> The installer detects your hardware and selects the right model automatically — no config needed. On Linux, 12 GB and 16 GB GPU cards are supported but run lower accuracy models; for best results use a 24 GB card. Linux requires Ubuntu 26.04 LTS (recommended) or 25.10.
->
-> On **macOS**, the full and inference roles require Apple Silicon (M1+). **64 GB+ unified memory is the recommended, tested configuration** — full-accuracy 35B model at the full 192k context. Less than 64 GB is not encouraged — the installer falls back to a smaller model with a much tighter context window. Intel Macs are supported in **agent-only** mode (connect to a separate inference box). macOS 14+ (Sonoma/Sequoia) recommended.
 
 ---
 
 <!--  ── DOCS ────────────────────────────────────────────────── -->
 ## Docs
 
-| | |
-|---|---|
-| [Roadmap](ROADMAP.md) | What's next |
-| [Setup & commands](docs/SETUP.md) | Daily commands, TUI vs classic, flags |
-| [Architecture](docs/ARCHITECTURE.md) | .NET CLI + llama.cpp + Docker, full diagram |
-| [Models & reasoning](docs/MODELS.md) | Model tiers, reasoning mode, provider config |
-| [Configuration](docs/CONFIG.md) | settings.json, providers, permissions, MCP servers |
-| [Playbooks](docs/PLAYBOOKS.md) | YAML workflows, typed params, checkpoint/resume |
-| [graphify](docs/graphify.md) | Semantic code graph, 25+ languages |
-| [code-review-graph](docs/code-review-graph.md) | Structural call graph via MCP |
-| [VS Code extension](docs/SETUP.md#vs-code--cursor-extension) | Chat panel for VS Code 1.85+ · also works in Cursor · [Marketplace](https://marketplace.visualstudio.com/items?itemName=StartupHakk.openmono-agent) |
-| [Contributing](CONTRIBUTING.md) | How to contribute |
+<table width="100%" style="border-collapse:collapse;background:#111111;border:1px solid #232323;border-radius:4px;">
+  <tr>
+    <td width="30%" style="padding:9px 16px;border-bottom:1px solid #1A1A1A;border-right:1px solid #232323;"><a href="ROADMAP.md"><code style="font-size:12px;">Roadmap</code></a></td>
+    <td style="padding:9px 16px;border-bottom:1px solid #1A1A1A;"><sub style="color:#C8C8C0;">What's next</sub></td>
+  </tr>
+  <tr>
+    <td style="padding:9px 16px;border-bottom:1px solid #1A1A1A;border-right:1px solid #232323;"><a href="docs/SETUP.md"><code style="font-size:12px;">Setup &amp; commands</code></a></td>
+    <td style="padding:9px 16px;border-bottom:1px solid #1A1A1A;"><sub style="color:#C8C8C0;">Daily commands, TUI vs classic, flags</sub></td>
+  </tr>
+  <tr>
+    <td style="padding:9px 16px;border-bottom:1px solid #1A1A1A;border-right:1px solid #232323;"><a href="docs/ARCHITECTURE.md"><code style="font-size:12px;">Architecture</code></a></td>
+    <td style="padding:9px 16px;border-bottom:1px solid #1A1A1A;"><sub style="color:#C8C8C0;">.NET CLI + llama.cpp + Docker, full diagram</sub></td>
+  </tr>
+  <tr>
+    <td style="padding:9px 16px;border-bottom:1px solid #1A1A1A;border-right:1px solid #232323;"><a href="docs/MODELS.md"><code style="font-size:12px;">Models &amp; reasoning</code></a></td>
+    <td style="padding:9px 16px;border-bottom:1px solid #1A1A1A;"><sub style="color:#C8C8C0;">Model tiers, reasoning mode, provider config</sub></td>
+  </tr>
+  <tr>
+    <td style="padding:9px 16px;border-bottom:1px solid #1A1A1A;border-right:1px solid #232323;"><a href="docs/CONFIG.md"><code style="font-size:12px;">Configuration</code></a></td>
+    <td style="padding:9px 16px;border-bottom:1px solid #1A1A1A;"><sub style="color:#C8C8C0;">settings.json, providers, permissions, MCP servers</sub></td>
+  </tr>
+  <tr>
+    <td style="padding:9px 16px;border-bottom:1px solid #1A1A1A;border-right:1px solid #232323;"><a href="docs/PLAYBOOKS.md"><code style="font-size:12px;">Playbooks</code></a></td>
+    <td style="padding:9px 16px;border-bottom:1px solid #1A1A1A;"><sub style="color:#C8C8C0;">YAML workflows, typed params, checkpoint/resume</sub></td>
+  </tr>
+  <tr>
+    <td style="padding:9px 16px;border-bottom:1px solid #1A1A1A;border-right:1px solid #232323;"><a href="docs/graphify.md"><code style="font-size:12px;">graphify</code></a></td>
+    <td style="padding:9px 16px;border-bottom:1px solid #1A1A1A;"><sub style="color:#C8C8C0;">Semantic code graph, 25+ languages</sub></td>
+  </tr>
+  <tr>
+    <td style="padding:9px 16px;border-bottom:1px solid #1A1A1A;border-right:1px solid #232323;"><a href="docs/code-review-graph.md"><code style="font-size:12px;">code-review-graph</code></a></td>
+    <td style="padding:9px 16px;border-bottom:1px solid #1A1A1A;"><sub style="color:#C8C8C0;">Structural call graph via MCP</sub></td>
+  </tr>
+  <tr>
+    <td style="padding:9px 16px;border-bottom:1px solid #1A1A1A;border-right:1px solid #232323;"><a href="docs/SETUP.md#vs-code--cursor-extension"><code style="font-size:12px;">VS Code extension</code></a></td>
+    <td style="padding:9px 16px;border-bottom:1px solid #1A1A1A;"><sub style="color:#C8C8C0;">Chat panel for VS Code 1.85+ · also works in Cursor · <a href="https://marketplace.visualstudio.com/items?itemName=StartupHakk.openmono-agent">Marketplace</a></sub></td>
+  </tr>
+  <tr>
+    <td style="padding:9px 16px;border-right:1px solid #232323;"><a href="CONTRIBUTING.md"><code style="font-size:12px;">Contributing</code></a></td>
+    <td style="padding:9px 16px;"><sub style="color:#C8C8C0;">How to contribute</sub></td>
+  </tr>
+</table>
 
-> [!NOTE]
-> OpenMono is in **Public Beta**. Early access is open, and we're shipping updates fast. Try it out and tell us what you'd like to see next.
+<br/>
+
+<table width="100%" style="border-collapse:collapse;background:#111111;border:1px solid #232323;border-radius:4px;">
+  <tr><td style="padding:14px 18px;">
+    <span style="display:inline-block;background:#FF8C00;color:#0D0D0D;padding:2px 10px;border-radius:12px;font-size:10px;font-weight:700;letter-spacing:0.06em;">PUBLIC BETA</span>&nbsp;&nbsp;<sub style="color:#C8C8C0;">Early access is open — we're shipping updates fast. Try it out and tell us what you'd like to see next.</sub>
+  </td></tr>
+</table>
 
 ---
 
 ## Contributing
 
-OpenMono is early and moving fast. Contributions are welcome — new tools, providers, LSP servers, playbooks, bug fixes, or docs.
-
-Read the [contributing guide](CONTRIBUTING.md) before opening a PR.
+<table width="100%" style="border-collapse:collapse;background:#111111;border:1px solid #232323;border-radius:4px;">
+  <tr><td style="padding:16px 18px 10px;">
+    <sub style="color:#C8C8C0;">OpenMono is early and moving fast. Contributions are welcome — new tools, providers, LSP servers, playbooks, bug fixes, or docs.</sub>
+  </td></tr>
+  <tr><td style="padding:0 18px 14px;">
+    <a href="CONTRIBUTING.md"><code style="font-size:11px;">→ Read the contributing guide before opening a PR</code></a>
+  </td></tr>
+</table>
 
 ---
 

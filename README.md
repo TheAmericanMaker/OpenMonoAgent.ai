@@ -103,65 +103,16 @@ openmono agent --classic    # classic scrolling terminal
 
 Most coding agents are cloud products wearing an open-source label. Your prompts, your code, and your context hit someone else's servers on every keystroke. OpenMono runs the model on your hardware — after the one-time setup, **inference costs nothing**. Your code never leaves the machine. No account. No usage dashboard. No API key.
 
-<table width="100%" style="border-collapse:collapse;background:#111111;border:1px solid #232323;border-radius:4px;">
-  <tr><td colspan="4" style="padding:8px 16px 6px;border-bottom:1px solid #232323;">
-    <code style="font-size:11px;color:#A3FF66;letter-spacing:0.12em;">HOW IT COMPARES</code>
-  </td></tr>
-  <tr>
-    <td width="22%" style="padding:10px 16px;border-bottom:1px solid #232323;border-right:1px solid #232323;"></td>
-    <td width="26%" style="padding:10px 16px;border-bottom:1px solid #232323;border-right:1px solid #232323;border-top:2px solid #A3FF66;"><strong style="color:#A3FF66;">OpenMono</strong></td>
-    <td width="26%" style="padding:10px 16px;border-bottom:1px solid #232323;border-right:1px solid #232323;"><code style="font-size:11px;color:#4A4A44;">Claude Code</code></td>
-    <td width="26%" style="padding:10px 16px;border-bottom:1px solid #232323;"><code style="font-size:11px;color:#4A4A44;">OpenCode</code></td>
-  </tr>
-  <tr>
-    <td style="padding:9px 16px;border-bottom:1px solid #1A1A1A;border-right:1px solid #232323;"><sub style="color:#6A6A62;">Inference cost</sub></td>
-    <td style="padding:9px 16px;border-bottom:1px solid #1A1A1A;border-right:1px solid #232323;"><sub style="color:#E2E2DA;">Zero per token (local)</sub></td>
-    <td style="padding:9px 16px;border-bottom:1px solid #1A1A1A;border-right:1px solid #232323;"><sub style="color:#6A6A62;">Per-token billing</sub></td>
-    <td style="padding:9px 16px;border-bottom:1px solid #1A1A1A;"><sub style="color:#6A6A62;">Per-token billing</sub></td>
-  </tr>
-  <tr>
-    <td style="padding:9px 16px;border-bottom:1px solid #1A1A1A;border-right:1px solid #232323;"><sub style="color:#6A6A62;">Data privacy</sub></td>
-    <td style="padding:9px 16px;border-bottom:1px solid #1A1A1A;border-right:1px solid #232323;"><sub style="color:#E2E2DA;">Fully offline capable</sub></td>
-    <td style="padding:9px 16px;border-bottom:1px solid #1A1A1A;border-right:1px solid #232323;"><sub style="color:#6A6A62;">Cloud only</sub></td>
-    <td style="padding:9px 16px;border-bottom:1px solid #1A1A1A;"><sub style="color:#6A6A62;">Depends on provider</sub></td>
-  </tr>
-  <tr>
-    <td style="padding:9px 16px;border-bottom:1px solid #1A1A1A;border-right:1px solid #232323;"><sub style="color:#6A6A62;">Default inference</sub></td>
-    <td style="padding:9px 16px;border-bottom:1px solid #1A1A1A;border-right:1px solid #232323;"><sub style="color:#E2E2DA;">llama.cpp bundled, zero config</sub></td>
-    <td style="padding:9px 16px;border-bottom:1px solid #1A1A1A;border-right:1px solid #232323;"><sub style="color:#6A6A62;">Anthropic API required</sub></td>
-    <td style="padding:9px 16px;border-bottom:1px solid #1A1A1A;"><sub style="color:#6A6A62;">BYO provider, no bundled inference</sub></td>
-  </tr>
-  <tr>
-    <td style="padding:9px 16px;border-bottom:1px solid #1A1A1A;border-right:1px solid #232323;"><sub style="color:#6A6A62;">Sandboxing</sub></td>
-    <td style="padding:9px 16px;border-bottom:1px solid #1A1A1A;border-right:1px solid #232323;"><sub style="color:#E2E2DA;">Docker-native</sub></td>
-    <td style="padding:9px 16px;border-bottom:1px solid #1A1A1A;border-right:1px solid #232323;"><sub style="color:#6A6A62;">Host process</sub></td>
-    <td style="padding:9px 16px;border-bottom:1px solid #1A1A1A;"><sub style="color:#6A6A62;">Host process</sub></td>
-  </tr>
-  <tr>
-    <td style="padding:9px 16px;border-bottom:1px solid #1A1A1A;border-right:1px solid #232323;"><sub style="color:#6A6A62;">Code intelligence</sub></td>
-    <td style="padding:9px 16px;border-bottom:1px solid #1A1A1A;border-right:1px solid #232323;"><sub style="color:#E2E2DA;">LSP + Roslyn + MCP graph tools</sub></td>
-    <td style="padding:9px 16px;border-bottom:1px solid #1A1A1A;border-right:1px solid #232323;"><sub style="color:#6A6A62;">File reads</sub></td>
-    <td style="padding:9px 16px;border-bottom:1px solid #1A1A1A;"><sub style="color:#6A6A62;">LSP (30+ servers)</sub></td>
-  </tr>
-  <tr>
-    <td style="padding:9px 16px;border-bottom:1px solid #1A1A1A;border-right:1px solid #232323;"><sub style="color:#6A6A62;">Extensibility</sub></td>
-    <td style="padding:9px 16px;border-bottom:1px solid #1A1A1A;border-right:1px solid #232323;"><sub style="color:#E2E2DA;">Playbooks (typed, composable)</sub></td>
-    <td style="padding:9px 16px;border-bottom:1px solid #1A1A1A;border-right:1px solid #232323;"><sub style="color:#6A6A62;">Skills (markdown)</sub></td>
-    <td style="padding:9px 16px;border-bottom:1px solid #1A1A1A;"><sub style="color:#6A6A62;">Plugins (TS SDK)</sub></td>
-  </tr>
-  <tr>
-    <td style="padding:9px 16px;border-bottom:1px solid #1A1A1A;border-right:1px solid #232323;"><sub style="color:#6A6A62;">MCP</sub></td>
-    <td style="padding:9px 16px;border-bottom:1px solid #1A1A1A;border-right:1px solid #232323;"><sub style="color:#E2E2DA;">Client (stdio)</sub></td>
-    <td style="padding:9px 16px;border-bottom:1px solid #1A1A1A;border-right:1px solid #232323;"><sub style="color:#6A6A62;">Full client</sub></td>
-    <td style="padding:9px 16px;border-bottom:1px solid #1A1A1A;"><sub style="color:#6A6A62;">Full client</sub></td>
-  </tr>
-  <tr>
-    <td style="padding:9px 16px;border-right:1px solid #232323;"><sub style="color:#6A6A62;">UI</sub></td>
-    <td style="padding:9px 16px;border-right:1px solid #232323;"><sub style="color:#E2E2DA;">TUI + CLI + VS Code + Mobile</sub></td>
-    <td style="padding:9px 16px;border-right:1px solid #232323;"><sub style="color:#6A6A62;">Web, Desktop, VS Code, CLI</sub></td>
-    <td style="padding:9px 16px;"><sub style="color:#6A6A62;">TUI, Desktop, Web</sub></td>
-  </tr>
-</table>
+|  | **OpenMono** | Claude Code | OpenCode |
+|--|:-------------|-------------|----------|
+| **Inference cost** | Zero per token (local) | Per-token billing | Per-token billing |
+| **Data privacy** | Fully offline capable | Cloud only | Depends on provider |
+| **Default inference** | llama.cpp bundled, zero config | Anthropic API required | BYO provider, no bundled inference |
+| **Sandboxing** | Docker-native | Host process | Host process |
+| **Code intelligence** | LSP + Roslyn + MCP graph tools | File reads | LSP (30+ servers) |
+| **Extensibility** | Playbooks (typed, composable) | Skills (markdown) | Plugins (TS SDK) |
+| **MCP** | Client (stdio) | Full client | Full client |
+| **UI** | TUI + CLI + VS Code + Mobile | Web, Desktop, VS Code, CLI | TUI, Desktop, Web |
 
 → [Full architecture + diagram](docs/ARCHITECTURE.md) · [4 providers](docs/MODELS.md) · runs at **~45 tok/s on GPU**, ~20 tok/s on CPU
 
@@ -291,15 +242,29 @@ The full agent loop in your editor sidebar — streaming responses, live Markdow
 <!--  ── SUPPORTED HARDWARE ──────────────────────────────────── -->
 ## Supported Hardware
 
-![Linux hardware](docs/assets/table-hardware-linux.svg)
+### Linux — NVIDIA GPU / CPU
+
+| VRAM / RAM | Model | Accuracy | Speed |
+|------------|-------|----------|-------|
+| GPU 24 GB+ | Qwen3.6-27B-Q4_K_M | Full | ~45–70 tok/s |
+| GPU 16 GB | Qwen3.6-27B-UD-IQ3_XXS | Lower | ~20–42 tok/s (4060 Ti → 4080) |
+| GPU 12 GB | Qwen3.5-9B-Q4_K_M | Lower | ~38–40 tok/s (RTX 3060) |
+| CPU 24 GB RAM | Qwen3.6-35B-A3B-UD-Q4_K_XL | Full | ~17–20 tok/s |
+
+### macOS — Apple Silicon (Metal)
+
+Inference runs natively on the Metal GPU via llama.cpp — no Docker needed for the model. Model tier is picked from the unified memory size.
+
+| Unified memory | Model | Accuracy | Context (vision on) | Speed | Status |
+|----------------|-------|----------|---------------------|-------|--------|
+| 64 GB+ | Qwen3.6-35B-A3B-UD-Q4_K_XL | Full | 192k (168k) | ~45–48 tok/s (M5 Pro) | ✅ Recommended / tested |
+| 32 GB | Qwen3.5-9B-Q4_K_M | Lower | 64k (48k) | ~22–27 tok/s (M1 Max) | ⚠️ Not encouraged |
+| 16 GB | Qwen3.5-9B-Q4_K_M | Lower | 16k (12k) | ~12–16 tok/s (M4) | ⚠️ Not encouraged |
 
 > [!NOTE]
-> The installer detects your hardware and selects the right model automatically — no config needed. 12 GB and 16 GB GPU cards are supported but run lower accuracy models; for best results use a 24 GB card. Linux requires Ubuntu 26.04 LTS (recommended) or 25.10.
-
-![macOS hardware](docs/assets/table-hardware-macos.svg)
-
-> [!NOTE]
-> Requires Apple Silicon (M1+). **64 GB+ unified memory is the recommended configuration** — full-accuracy 35B model at the full 192k context. Less than 64 GB falls back to a smaller model with a tighter context window. Intel Macs are supported in **agent-only** mode (connect to a separate inference box). macOS 14+ (Sonoma/Sequoia) recommended.
+> The installer detects your hardware and selects the right model automatically — no config needed. On Linux, 12 GB and 16 GB GPU cards are supported but run lower accuracy models; for best results use a 24 GB card. Linux requires Ubuntu 26.04 LTS (recommended) or 25.10.
+>
+> On **macOS**, the full and inference roles require Apple Silicon (M1+). **64 GB+ unified memory is the recommended, tested configuration** — full-accuracy 35B model at the full 192k context. Less than 64 GB is not encouraged — the installer falls back to a smaller model with a much tighter context window. Intel Macs are supported in **agent-only** mode (connect to a separate inference box). macOS 14+ (Sonoma/Sequoia) recommended.
 
 ---
 

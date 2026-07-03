@@ -144,7 +144,9 @@ public sealed class AcpTurnRunner : IAcpEventSink
         // feed the REAL result back to the model. This replaces the old "re-issue the tool
         // call" handshake, which never executed the tool (file unwritten) and let the model
         // hallucinate success from a bare "permission granted" message.
-        var sessionState = BuildSessionState();
+        // Operates directly on the persistent session state (no copy/sync needed).
+        var sessionState = _acpSession.State;
+        sessionState.Meta.TokenTracker ??= new TokenTracker();
         using var loop = _loopFactory.Create(sessionState, sink: this, interaction: _interaction);
         try
         {
@@ -160,20 +162,16 @@ public sealed class AcpTurnRunner : IAcpEventSink
             }
 
             await loop.ContinueTurnAsync(ct);
-            SyncBackToAcpSession(sessionState);
             await _writer.WriteEventAsync("done", new { });
         }
         catch (PendingUserResponseException)
         {
-            SyncBackToAcpSession(sessionState);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
-            SyncBackToAcpSession(sessionState);
         }
         catch (Exception e)
         {
-            SyncBackToAcpSession(sessionState);
             await _writer.WriteEventAsync("error", new { message = e.Message });
         }
     }
@@ -232,33 +230,24 @@ public sealed class AcpTurnRunner : IAcpEventSink
 
     private async Task DriveLoopAsync(CancellationToken ct)
     {
-        var sessionState = BuildSessionState();
+        var sessionState = _acpSession.State;
+        sessionState.Meta.TokenTracker ??= new TokenTracker();
+
         using var loop = _loopFactory.Create(sessionState, sink: this, interaction: _interaction);
 
         try
         {
-
-
-
             await loop.ContinueTurnAsync(ct);
-            SyncBackToAcpSession(sessionState);
             await _writer.WriteEventAsync("done", new { });
         }
         catch (PendingUserResponseException)
         {
-
-
-
-            SyncBackToAcpSession(sessionState);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
-
-            SyncBackToAcpSession(sessionState);
         }
         catch (Exception e)
         {
-            SyncBackToAcpSession(sessionState);
             await _writer.WriteEventAsync("error", new { message = e.Message });
         }
     }
@@ -317,30 +306,6 @@ public sealed class AcpTurnRunner : IAcpEventSink
             first = false;
         }
     }
-
-    private SessionState BuildSessionState()
-    {
-        var ss = new SessionState();
-        foreach (var m in _acpSession.Messages) ss.AddMessage(m);
-        ss.TurnCount = _acpSession.TurnCount;
-        ss.Meta.PlanMode = _acpSession.PlanMode;
-        ss.Meta.AutoApproveWrites = _acpSession.AutoApproveWrites;
-        ss.Todos.Clear();
-        foreach (var t in _acpSession.Todos) ss.Todos.Add(t);
-        ss.Meta.TokenTracker ??= new TokenTracker();
-        return ss;
-    }
-
-    private void SyncBackToAcpSession(SessionState ss)
-    {
-        _acpSession.Messages.Clear();
-        _acpSession.Messages.AddRange(ss.Messages);
-        _acpSession.PlanMode = ss.Meta.PlanMode;
-        _acpSession.AutoApproveWrites = ss.Meta.AutoApproveWrites;
-        _acpSession.Todos.Clear();
-        foreach (var t in ss.Todos) _acpSession.Todos.Add(t);
-    }
-
 
 
     public Task OnTextDeltaAsync(string content)
